@@ -1,0 +1,8 @@
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# Variables scoped to worker nodes
+# ─────────────────────────────────────────────────────────────────────────────
+
+# The join command is fetched from the control-plane node at runtime;
+# these vars hold the path on the Ansible controller where it is cached.
+join_command_local_path: /tmp/kubeadm_join_command.sh

@@ -1,0 +1,11 @@
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# Variables scoped to the control-plane group
+# ─────────────────────────────────────────────────────────────────────────────
+
+# kubeadm init extra SANs — add your LB DNS name here if you front the API
+# server with an NLB later.
+apiserver_extra_sans: []
+
+# Path where kubeadm stores the join command after init
+kubeadm_join_command_file: /tmp/kubeadm_join_command.sh

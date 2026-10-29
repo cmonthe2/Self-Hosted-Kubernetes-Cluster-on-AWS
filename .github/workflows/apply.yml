@@ -1,18 +1,37 @@
-name: Terraform Apply
+name: Terraform Apply + Ansible Provision
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      ansible_only:
+        description: "Skip Terraform, run Ansible only (use if infra already exists)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
-  id-token: write
+  id-token: write   # OIDC → AWS
 
 env:
   AWS_REGION: us-east-1
+  TF_DIR: terraform
 
 jobs:
-  apply:
+  # ────────────────────────────────────────────────────────────────────────────
+  # Job 1: Terraform Apply
+  # Provisions all AWS infrastructure and generates the SSH key pair.
+  # The private key is stored in SSM Parameter Store — no GitHub secrets needed.
+  # ────────────────────────────────────────────────────────────────────────────
+  terraform:
+    name: Terraform Apply
     runs-on: ubuntu-latest
+    if: ${{ !inputs.ansible_only }}
+
+    outputs:
+      control_plane_public_ip:  ${{ steps.tf_outputs.outputs.control_plane_public_ip }}
+      worker_private_ips:       ${{ steps.tf_outputs.outputs.worker_private_ips }}
+      ssh_private_key_ssm_path: ${{ steps.tf_outputs.outputs.ssh_private_key_ssm_path }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -25,45 +44,194 @@ jobs:
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.8.5
+          terraform_wrapper: false   # raw stdout needed to capture outputs
 
       - name: Prep plugin cache
         run: mkdir -p ~/.terraform.d/plugin-cache
 
-      - name: Find Terraform directories
-        id: find
+      - name: Terraform init
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform init -input=false -upgrade
+
+      - name: Terraform validate
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform validate
+
+      - name: Resolve GitHub Actions runner public IP
+        id: runner_ip
         run: |
-          set -euo pipefail
-          mapfile -t DIRS < <(git ls-files -z '*.tf' | xargs -0 -n1 dirname | sort -u)
-          if [ ${#DIRS[@]} -eq 0 ]; then
-            echo "dirs=[]" >> $GITHUB_OUTPUT
-          else
-            JSON=$(printf '%s\n' "${DIRS[@]}" | jq -R -s -c 'split("\n")[:-1]')
-            echo "dirs=$JSON" >> $GITHUB_OUTPUT
+          IP=$(curl -sf https://checkip.amazonaws.com)
+          echo "cidr=${IP}/32" >> "$GITHUB_OUTPUT"
+          echo "Runner public IP: ${IP}/32"
+
+      - name: Terraform apply
+        working-directory: ${{ env.TF_DIR }}
+        env:
+          # key_name removed — Terraform manages the key pair itself.
+          # allowed_ssh_cidr is the runner's live IP — no secret needed.
+          TF_VAR_allowed_ssh_cidr: ${{ steps.runner_ip.outputs.cidr }}
+          # worker_count is a number type — guard against empty repo variable
+          TF_VAR_worker_count: ${{ vars.TF_VAR_WORKER_COUNT != '' && vars.TF_VAR_WORKER_COUNT || '2' }}
+        run: terraform apply -input=false -auto-approve
+
+      - name: Capture Terraform outputs
+        id: tf_outputs
+        working-directory: ${{ env.TF_DIR }}
+        run: |
+          echo "control_plane_public_ip=$(terraform output -raw control_plane_public_ip)"    >> "$GITHUB_OUTPUT"
+          echo "worker_private_ips=$(terraform output -json worker_private_ips)"             >> "$GITHUB_OUTPUT"
+          echo "ssh_private_key_ssm_path=$(terraform output -raw ssh_private_key_ssm_path)" >> "$GITHUB_OUTPUT"
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # Job 2: Ansible Provision
+  # Fetches the SSH private key from SSM (put there by Terraform), then
+  # configures every node and deploys the sample workload.
+  # ────────────────────────────────────────────────────────────────────────────
+  ansible:
+    name: Ansible Provision
+    runs-on: ubuntu-latest
+    needs: [terraform]
+    if: |
+      always() &&
+      (needs.terraform.result == 'success' || inputs.ansible_only == true)
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: pip install ansible boto3 botocore
+
+      - name: Install Ansible Galaxy collections
+        run: ansible-galaxy collection install -r ansible/requirements.yml
+
+      # ── Resolve the control-plane public IP ───────────────────────────────
+      # Normal flow: comes from the terraform job output.
+      # ansible_only mode: query EC2 directly since terraform job was skipped.
+      - name: Resolve control-plane public IP
+        id: cp_ip
+        run: |
+          IP="${{ needs.terraform.outputs.control_plane_public_ip }}"
+          if [ -z "$IP" ]; then
+            echo "No IP from terraform job — querying EC2..."
+            IP=$(aws ec2 describe-instances \
+              --filters "Name=tag:Role,Values=control-plane" \
+                        "Name=instance-state-name,Values=running" \
+              --query "Reservations[0].Instances[0].PublicIpAddress" \
+              --output text)
           fi
+          echo "ip=$IP" >> "$GITHUB_OUTPUT"
+          echo "Resolved control-plane IP: $IP"
 
-      - name: Apply each directory
-        if: steps.find.outputs.dirs != '[]'
+      # ── Resolve the SSM parameter path for the SSH private key ────────────
+      # Normal flow: Terraform output carries the exact path.
+      # ansible_only mode: reconstruct from the naming convention in keypair.tf.
+      - name: Resolve SSM key path
+        id: ssm_path
         run: |
-          set -euo pipefail
-          for d in $(echo '${{ steps.find.outputs.dirs }}' | jq -r '.[]'); do
-            echo "=== Applying $d ==="
-            pushd "$d" >/dev/null
+          SSM_PATH="${{ needs.terraform.outputs.ssh_private_key_ssm_path }}"
+          if [ -z "$SSM_PATH" ]; then
+            # Fallback: honour an optional repo variable, else use the default
+            # naming pattern from keypair.tf: /<project>-<env>/ssh-private-key
+            SSM_PATH="${{ vars.SSM_KEY_PATH }}"
+            SSM_PATH="${SSM_PATH:-/k8s-cluster-dev/ssh-private-key}"
+          fi
+          echo "path=$SSM_PATH" >> "$GITHUB_OUTPUT"
+          echo "SSM path: $SSM_PATH"
 
-            if [ "$d" = "." ]; then
-              KEY_SUFFIX="root/terraform.tfstate"
-            else
-              KEY_SUFFIX="$d/terraform.tfstate"
+      # ── Fetch SSH private key from SSM Parameter Store ────────────────────
+      # The key was written there by Terraform (keypair.tf → aws_ssm_parameter).
+      # No SSH secrets in GitHub needed.
+      - name: Fetch SSH private key from SSM
+        run: |
+          mkdir -p ~/.ssh
+          aws ssm get-parameter \
+            --name "${{ steps.ssm_path.outputs.path }}" \
+            --with-decryption \
+            --query "Parameter.Value" \
+            --output text > ~/.ssh/k8s_deploy_key
+          chmod 600 ~/.ssh/k8s_deploy_key
+          echo "SSH key written to ~/.ssh/k8s_deploy_key"
+
+      - name: Point ansible.cfg at the fetched key
+        run: |
+          sed -i 's|private_key_file.*|private_key_file = ~/.ssh/k8s_deploy_key|' \
+            ansible/ansible.cfg
+
+      # ── Wait for SSH ──────────────────────────────────────────────────────
+      - name: Wait for control-plane SSH (up to 5 min)
+        run: |
+          CP_IP="${{ steps.cp_ip.outputs.ip }}"
+          echo "Waiting for SSH on $CP_IP..."
+          for i in $(seq 1 30); do
+            if ssh -o StrictHostKeyChecking=no \
+                   -o ConnectTimeout=5 \
+                   -i ~/.ssh/k8s_deploy_key \
+                   ubuntu@"$CP_IP" true 2>/dev/null; then
+              echo "SSH is up after attempt $i."
+              exit 0
             fi
-            KEY="${GITHUB_REPOSITORY}/${KEY_SUFFIX}"
-
-            terraform init -input=false -upgrade -reconfigure
-
-            if [ -f tfplan ]; then
-              terraform apply -input=false -auto-approve tfplan
-            else
-              echo "⚠️ No tfplan found, applying without pre-generated plan"
-              terraform apply -input=false -auto-approve
-            fi
-
-            popd >/dev/null
+            echo "  attempt $i/30 — sleeping 10s"
+            sleep 10
           done
+          echo "::error::Timed out waiting for SSH on $CP_IP"
+          exit 1
+
+      # ── ProxyJump so the runner can reach private worker nodes ────────────
+      # Workers sit in private subnets with no public IP. All traffic routes
+      # through the control-plane as a jump host.
+      - name: Configure SSH ProxyJump for private worker nodes
+        run: |
+          CP_IP="${{ steps.cp_ip.outputs.ip }}"
+          cat > ~/.ssh/config <<EOF
+          Host 10.0.*
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+            IdentityFile ~/.ssh/k8s_deploy_key
+            ProxyJump ubuntu@${CP_IP}
+
+          Host ${CP_IP}
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+            IdentityFile ~/.ssh/k8s_deploy_key
+          EOF
+          chmod 600 ~/.ssh/config
+
+      # ── Run the full playbook ─────────────────────────────────────────────
+      - name: Run Ansible site.yml
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "False"
+          ANSIBLE_FORCE_COLOR: "True"
+        run: ansible-playbook ansible/site.yml
+
+      # ── Summary ───────────────────────────────────────────────────────────
+      - name: Print cluster access info
+        run: |
+          CP_IP="${{ steps.cp_ip.outputs.ip }}"
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo " Cluster is ready!"
+          echo ""
+          echo " SSH into control-plane:"
+          echo "   # Fetch the key from SSM first:"
+          echo "   aws ssm get-parameter --name ${{ steps.ssm_path.outputs.path }} \\"
+          echo "     --with-decryption --query Parameter.Value --output text > k8s.pem"
+          echo "   chmod 600 k8s.pem"
+          echo "   ssh -i k8s.pem ubuntu@${CP_IP}"
+          echo ""
+          echo " Check cluster:"
+          echo "   ssh -i k8s.pem ubuntu@${CP_IP} kubectl get nodes"
+          echo ""
+          echo " Sample nginx workload:"
+          echo "   http://${CP_IP}:30080"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

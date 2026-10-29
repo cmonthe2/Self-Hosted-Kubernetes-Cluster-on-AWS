@@ -1,0 +1,48 @@
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# sample_workload/tasks/main.yml
+# Deploys an nginx Deployment + NodePort Service to prove the cluster works.
+# Runs only on the control-plane node (kubectl delegate).
+# ─────────────────────────────────────────────────────────────────────────────
+
+- name: Create namespace for sample workload
+  kubernetes.core.k8s:
+    kubeconfig: /etc/kubernetes/admin.conf
+    api_version: v1
+    kind: Namespace
+    name: demo
+    state: present
+
+- name: Deploy nginx Deployment
+  kubernetes.core.k8s:
+    kubeconfig: /etc/kubernetes/admin.conf
+    state: present
+    definition: "{{ lookup('template', 'nginx-deployment.yml.j2') }}"
+
+- name: Deploy nginx Service (NodePort)
+  kubernetes.core.k8s:
+    kubeconfig: /etc/kubernetes/admin.conf
+    state: present
+    definition: "{{ lookup('template', 'nginx-service.yml.j2') }}"
+
+- name: Wait for nginx pods to be Ready
+  kubernetes.core.k8s_info:
+    kubeconfig: /etc/kubernetes/admin.conf
+    api_version: v1
+    kind: Pod
+    namespace: demo
+    label_selectors:
+      - app=nginx
+  register: nginx_pods
+  until: >-
+    nginx_pods.resources | length > 0 and
+    nginx_pods.resources | selectattr('status.phase', 'equalto', 'Running') | list | length ==
+    nginx_pods.resources | length
+  retries: 15
+  delay: 10
+
+- name: Print NodePort service info
+  debug:
+    msg: >-
+      nginx is accessible at http://<any-node-ip>:{{ nginx_node_port }}
+      (open NodePort {{ nginx_node_port }} in your security group if needed)

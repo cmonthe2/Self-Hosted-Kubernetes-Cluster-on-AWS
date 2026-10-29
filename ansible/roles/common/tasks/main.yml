@@ -1,0 +1,18 @@
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# common/tasks/main.yml
+# Runs on EVERY cluster node (control-plane + workers).
+# Installs containerd, kubeadm, kubelet, kubectl and configures kernel params.
+# ─────────────────────────────────────────────────────────────────────────────
+
+- name: Disable swap (required by kubelet)
+  import_tasks: swap.yml
+
+- name: Configure kernel modules and sysctl
+  import_tasks: kernel.yml
+
+- name: Install containerd
+  import_tasks: containerd.yml
+
+- name: Install kubeadm, kubelet, kubectl
+  import_tasks: kubernetes_packages.yml

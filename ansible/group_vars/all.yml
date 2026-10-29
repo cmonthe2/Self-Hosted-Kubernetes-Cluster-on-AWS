@@ -1,0 +1,30 @@
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# Variables shared by every node in the cluster
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Kubernetes version to install (without the leading "v")
+kubernetes_version: "1.30"
+kubernetes_apt_version: "1.30.0-1.1"   # exact apt package suffix
+
+# containerd version to install from the official Ubuntu apt repo
+containerd_version: "1.7.*"
+
+# Pod network CIDR — must match the CNI you choose below
+# Calico default: 192.168.0.0/16
+pod_network_cidr: "192.168.0.0/16"
+
+# Service CIDR (kubernetes default)
+service_cidr: "10.96.0.0/12"
+
+# DNS service IP (must be within service_cidr)
+dns_service_ip: "10.96.0.10"
+
+# CNI to deploy on the control-plane: "calico" or "flannel"
+cni_plugin: "calico"
+
+# Calico manifest URL (pinned version for reproducibility)
+calico_manifest_url: "https://raw.githubusercontent.com/projectcalico/calico/v3.27.3/manifests/calico.yaml"
+
+# SSH user Ansible connects as (set in ansible.cfg too, kept here for clarity)
+ansible_user: ubuntu

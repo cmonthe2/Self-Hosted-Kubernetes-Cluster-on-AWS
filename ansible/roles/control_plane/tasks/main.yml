@@ -1,0 +1,94 @@
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# control_plane/tasks/main.yml
+# Initialises the cluster with kubeadm, installs the CNI, and captures the
+# worker join command for later use by the worker role.
+# ─────────────────────────────────────────────────────────────────────────────
+
+- name: Check if cluster is already initialised
+  stat:
+    path: /etc/kubernetes/admin.conf
+  register: kubeadm_admin_conf
+
+- name: Initialise the Kubernetes control plane
+  command: >
+    kubeadm init
+    --pod-network-cidr={{ pod_network_cidr }}
+    --service-cidr={{ service_cidr }}
+    --apiserver-advertise-address={{ ansible_default_ipv4.address }}
+    {% if apiserver_extra_sans | length > 0 %}
+    --apiserver-cert-extra-sans={{ apiserver_extra_sans | join(',') }}
+    {% endif %}
+    --node-name={{ inventory_hostname }}
+    --upload-certs
+  when: not kubeadm_admin_conf.stat.exists
+  register: kubeadm_init_output
+  changed_when: true
+
+- name: Create .kube directory for root
+  file:
+    path: /root/.kube
+    state: directory
+    mode: "0700"
+
+- name: Copy admin.conf to root's kubeconfig
+  copy:
+    src: /etc/kubernetes/admin.conf
+    dest: /root/.kube/config
+    remote_src: true
+    mode: "0600"
+
+- name: Create .kube directory for ubuntu user
+  file:
+    path: /home/ubuntu/.kube
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: "0700"
+
+- name: Copy admin.conf to ubuntu's kubeconfig
+  copy:
+    src: /etc/kubernetes/admin.conf
+    dest: /home/ubuntu/.kube/config
+    remote_src: true
+    owner: ubuntu
+    group: ubuntu
+    mode: "0600"
+
+- name: Install Calico CNI
+  command: kubectl apply -f {{ calico_manifest_url }}
+  when: cni_plugin == "calico"
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: calico_apply
+  changed_when: "'configured' in calico_apply.stdout or 'created' in calico_apply.stdout"
+
+- name: Wait for all control-plane pods to be Running
+  command: >
+    kubectl get pods -n kube-system
+    --field-selector=status.phase!=Running
+    --no-headers
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: not_running_pods
+  until: not_running_pods.stdout == ""
+  retries: 20
+  delay: 15
+  changed_when: false
+
+- name: Generate a fresh kubeadm join token (24h TTL)
+  command: kubeadm token create --print-join-command
+  register: join_command_raw
+  changed_when: true
+
+- name: Save join command on the control-plane node
+  copy:
+    dest: "{{ kubeadm_join_command_file }}"
+    content: "{{ join_command_raw.stdout }}\n"
+    mode: "0600"
+
+- name: Fetch join command to the Ansible controller
+  fetch:
+    src: "{{ kubeadm_join_command_file }}"
+    dest: "{{ join_command_local_path }}"
+    flat: true

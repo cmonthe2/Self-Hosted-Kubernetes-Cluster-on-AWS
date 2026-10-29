@@ -1,0 +1,37 @@
+# Dynamic inventory using the aws_ec2 plugin.
+# Ansible groups nodes automatically based on the "Role" EC2 tag set by Terraform.
+#
+# Requirements:
+#   pip install boto3 botocore
+#   AWS credentials must be available (env vars, ~/.aws/credentials, or instance profile)
+
+plugin: amazon.aws.aws_ec2
+
+regions:
+  - us-east-1
+
+# Only pick up instances that Terraform tagged with our cluster name
+filters:
+  "tag:ManagedBy": Terraform
+  instance-state-name: running
+
+# Group by the "Role" tag Terraform sets (values: control-plane, worker)
+keyed_groups:
+  - key: tags.Role
+    prefix: ""
+    separator: ""
+
+# Expose the private IP as the connection host for workers (they're in private subnets)
+# and the public IP for the control-plane node.
+compose:
+  ansible_host: >-
+    public_ip_address if tags.Role == 'control-plane' else private_ip_address
+
+hostnames:
+  - tag:Name
+
+# Cache results for 5 minutes to avoid hammering the AWS API during playbook runs
+cache: true
+cache_plugin: jsonfile
+cache_timeout: 300
+cache_connection: /tmp/aws_ec2_inventory_cache
