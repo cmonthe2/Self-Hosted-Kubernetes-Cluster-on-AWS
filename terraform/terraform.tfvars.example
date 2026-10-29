@@ -1,0 +1,25 @@
+# Copy this file to terraform.tfvars and fill in the values.
+# terraform.tfvars is git-ignored by default.
+
+project_name = "k8s-cluster"
+environment  = "dev"
+region       = "us-east-1"
+
+# Restrict SSH to your workstation IP for security (used by security groups)
+allowed_ssh_cidr = "0.0.0.0/0"   # replace with "x.x.x.x/32"
+
+# NOTE: No key_name needed — Terraform generates the EC2 key pair automatically
+# and stores the private key in SSM Parameter Store at:
+#   /<project_name>-<environment>/ssh-private-key
+
+# Instance sizing — t3.medium is the minimum for a Kubernetes node
+control_plane_instance_type = "t3.medium"
+worker_instance_type        = "t3.medium"
+worker_count                = 2
+
+root_volume_size_gb = 30
+root_volume_type    = "gp3"
+
+# Leave blank to auto-select the latest Ubuntu 22.04 LTS AMI
+control_plane_ami = ""
+worker_ami        = ""

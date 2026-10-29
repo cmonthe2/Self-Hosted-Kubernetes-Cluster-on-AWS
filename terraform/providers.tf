@@ -4,7 +4,7 @@ terraform {
 
   backend "s3" {
     bucket         = "tfstate-cif0ip"
-    key            = "cmonthe2/repo/terraform.tfstate"
+    key            = "cmonthe2/k8s/terraform.tfstate"
     region         = "us-east-1"
     dynamodb_table = "tf-locks"
     encrypt        = true
@@ -15,6 +15,10 @@ terraform {
       source  = "hashicorp/aws"
       version = ">= 5.0"
     }
+    tls = {
+      source  = "hashicorp/tls"
+      version = ">= 4.0"
+    }
   }
 }
 
@@ -24,5 +28,5 @@ provider "aws" {
     tags = {
       ManagedBy = "Terraform"
     }
-}
+  }
 }

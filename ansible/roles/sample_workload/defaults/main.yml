@@ -1,0 +1,4 @@
+---
+nginx_replicas: 2
+nginx_node_port: 30080
+nginx_image: "nginx:1.27-alpine"

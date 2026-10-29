@@ -1,0 +1,40 @@
+---
+- name: Download Kubernetes apt signing key
+  get_url:
+    url: "https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version }}/deb/Release.key"
+    dest: /etc/apt/keyrings/kubernetes-apt-keyring.asc
+    mode: "0644"
+    force: false
+
+- name: Add Kubernetes apt repository
+  apt_repository:
+    repo: >-
+      deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.asc]
+      https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version }}/deb/ /
+    filename: kubernetes
+    state: present
+
+- name: Install kubeadm, kubelet, kubectl
+  apt:
+    name:
+      - "kubeadm={{ kubernetes_apt_version }}"
+      - "kubelet={{ kubernetes_apt_version }}"
+      - "kubectl={{ kubernetes_apt_version }}"
+    state: present
+    update_cache: true
+
+- name: Pin kubeadm, kubelet, kubectl to prevent unintended upgrades
+  dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop:
+    - kubeadm
+    - kubelet
+    - kubectl
+
+- name: Enable and start kubelet
+  systemd:
+    name: kubelet
+    state: started
+    enabled: true
+    daemon_reload: true

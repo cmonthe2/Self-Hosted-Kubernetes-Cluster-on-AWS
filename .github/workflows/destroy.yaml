@@ -4,21 +4,23 @@ on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: 'Type "destroy" to confirm destruction of resources'
+        description: 'Type "destroy" to confirm destruction of all resources'
         required: true
 
 permissions:
   contents: read
-  id-token: write
+  id-token: write   # OIDC → AWS
 
 env:
   AWS_REGION: us-east-1
-  
+  TF_DIR: terraform
 
 jobs:
   destroy:
+    name: Terraform Destroy
     runs-on: ubuntu-latest
     if: github.event.inputs.confirm == 'destroy'
+
     steps:
       - uses: actions/checkout@v4
 
@@ -35,38 +37,14 @@ jobs:
       - name: Prep plugin cache
         run: mkdir -p ~/.terraform.d/plugin-cache
 
-      - name: Find Terraform directories
-        id: find
-        run: |
-          set -euo pipefail
-          mapfile -t DIRS < <(git ls-files -z '*.tf' | xargs -0 -n1 dirname | sort -u)
-          if [ ${#DIRS[@]} -eq 0 ]; then
-            echo "dirs=[]" >> $GITHUB_OUTPUT
-          else
-            JSON=$(printf '%s\n' "${DIRS[@]}" | jq -R -s -c 'split("\n")[:-1]')
-            echo "dirs=$JSON" >> $GITHUB_OUTPUT
-          fi
+      - name: Terraform init
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform init -input=false -upgrade
 
-      - name: Destroy each directory
-        if: steps.find.outputs.dirs != '[]'
-        run: |
-          set -euo pipefail
-          for d in $(echo '${{ steps.find.outputs.dirs }}' | jq -r '.[]'); do
-            echo "=== Destroying $d ==="
-            pushd "$d" >/dev/null
-
-            if [ "$d" = "." ]; then
-              KEY_SUFFIX="root/terraform.tfstate"
-            else
-              KEY_SUFFIX="$d/terraform.tfstate"
-            fi
-            KEY="${GITHUB_REPOSITORY}/${KEY_SUFFIX}"
-
-            terraform init -input=false -upgrade -reconfigure
-
-            echo "⚠️ Destroying resources in $d"
-            terraform destroy -input=false -auto-approve
-
-            popd >/dev/null
-
-          done
+      - name: Terraform destroy
+        working-directory: ${{ env.TF_DIR }}
+        env:
+          # allowed_ssh_cidr not needed here — destroy reads existing state.
+          # The variable has a default so Terraform won't prompt.
+          TF_VAR_worker_count: ${{ vars.TF_VAR_WORKER_COUNT }}
+        run: terraform destroy -input=false -auto-approve

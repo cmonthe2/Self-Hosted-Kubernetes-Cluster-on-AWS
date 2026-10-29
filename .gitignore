@@ -29,3 +29,14 @@ node_modules/
 # Archives
 *.zip
 *.tar.gz
+
+# Ansible
+ansible/inventory/hosts
+ansible/.retry
+/tmp/kubeadm_join_command.sh
+/tmp/aws_ec2_inventory_cache
+/tmp/ansible_facts_cache
+
+# kubeconfig (never commit credentials)
+*.kubeconfig
+kubeconfig
