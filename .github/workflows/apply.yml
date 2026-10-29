@@ -1,4 +1,4 @@
-name: Terraform Apply + Ansible Provision
+name: Deploy — Apply & Provision
 
 on:
   workflow_dispatch:

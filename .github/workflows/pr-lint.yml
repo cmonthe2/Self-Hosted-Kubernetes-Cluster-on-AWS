@@ -1,4 +1,4 @@
-name: Terraform PR (Lint)
+name: PR — Lint & Format
 
 on:
   pull_request:
