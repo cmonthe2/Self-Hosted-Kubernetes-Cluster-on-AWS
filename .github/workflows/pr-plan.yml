@@ -42,6 +42,15 @@ jobs:
         with:
           tflint_version: v0.51.1
 
+      - name: Install terraform-docs
+        run: |
+          VERSION=v0.18.0
+          curl -sSLo terraform-docs.tar.gz \
+            "https://github.com/terraform-docs/terraform-docs/releases/download/${VERSION}/terraform-docs-${VERSION}-linux-amd64.tar.gz"
+          tar -xzf terraform-docs.tar.gz terraform-docs
+          chmod +x terraform-docs
+          sudo mv terraform-docs /usr/local/bin/
+
       - name: Install pre-commit
         run: pip install pre-commit
 
