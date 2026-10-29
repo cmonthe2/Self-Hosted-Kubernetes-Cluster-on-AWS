@@ -53,26 +53,29 @@ jobs:
       - name: Terraform plan
         id: plan
         working-directory: ${{ env.TF_DIR }}
+        # Run even if fmt/validate failed so the comment always has output
+        if: always()
         env:
           # allowed_ssh_cidr has a default (0.0.0.0/0) so plan won't prompt.
           # key_name removed — Terraform manages the key pair itself.
           TF_VAR_worker_count: ${{ vars.TF_VAR_WORKER_COUNT }}
         run: |
           set +e
-          PLAN_OUT=$(terraform plan -input=false -no-color 2>&1)
-          EXIT_CODE=$?
+          terraform plan -input=false -no-color 2>&1 | tee /tmp/plan_output.txt
+          EXIT_CODE=${PIPESTATUS[0]}
           set -e
 
-          # Write to file for the PR comment step
-          echo "$PLAN_OUT" > /tmp/plan_output.txt
-
           if [ $EXIT_CODE -eq 1 ]; then
+            echo "plan_status=failed" >> "$GITHUB_OUTPUT"
             echo "::error::Terraform plan failed"
-            exit 1
+            # Don't exit — let the comment step still run
+          else
+            echo "plan_status=success" >> "$GITHUB_OUTPUT"
           fi
 
       # Security scan — soft-fail so it reports but doesn't block merges
       - name: tfsec security scan
+        if: always()
         uses: aquasecurity/tfsec-pr-commenter-action@v1.0.3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -80,11 +83,13 @@ jobs:
 
       # Best-practices lint
       - name: Setup TFLint
+        if: always()
         uses: terraform-linters/setup-tflint@v4
         with:
           tflint_version: v0.51.1
 
       - name: Run TFLint
+        if: always()
         working-directory: ${{ env.TF_DIR }}
         run: |
           tflint --init
@@ -96,30 +101,44 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const fs   = require('fs');
-            const plan = fs.readFileSync('/tmp/plan_output.txt', 'utf8');
-            const MAX  = 60000;
-            const body = `## 📝 Terraform Plan — \`terraform/\`
+            const fs = require('fs');
 
-            <details>
-            <summary>Show plan output</summary>
+            // Guard: file may not exist if init/validate failed before plan ran
+            let plan = '_Plan output not available — an earlier step failed._';
+            try {
+              plan = fs.readFileSync('/tmp/plan_output.txt', 'utf8');
+            } catch (_) {}
 
-            \`\`\`hcl
-            ${plan.length > MAX ? plan.slice(0, MAX) + '\n...(truncated)' : plan}
-            \`\`\`
+            const MAX    = 60000;
+            const status = '${{ steps.plan.outputs.plan_status }}';
+            const icon   = status === 'failed' ? '❌' : '✅';
+            const truncated = plan.length > MAX
+              ? plan.slice(0, MAX) + '\n...(truncated)'
+              : plan;
 
-            </details>
+            const body = [
+              `## ${icon} Terraform Plan — \`terraform/\``,
+              '',
+              '<details>',
+              '<summary>Show plan output</summary>',
+              '',
+              '```hcl',
+              truncated,
+              '```',
+              '',
+              '</details>',
+              '',
+              `> Triggered by commit \`${{ github.event.pull_request.head.sha }}\``,
+            ].join('\n');
 
-            > Triggered by commit \`${{ github.event.pull_request.head.sha }}\``;
-
-            // Delete previous bot comment if it exists
+            // Replace previous bot plan comment if one exists
             const comments = await github.rest.issues.listComments({
               owner:        context.repo.owner,
               repo:         context.repo.repo,
               issue_number: context.issue.number,
             });
             for (const c of comments.data) {
-              if (c.user.type === 'Bot' && c.body.startsWith('## 📝 Terraform Plan')) {
+              if (c.user.type === 'Bot' && c.body.includes('Terraform Plan')) {
                 await github.rest.issues.deleteComment({
                   owner:      context.repo.owner,
                   repo:       context.repo.repo,
@@ -134,3 +153,8 @@ jobs:
               issue_number: context.issue.number,
               body,
             });
+
+            // Fail the job after posting the comment if plan itself failed
+            if (status === 'failed') {
+              core.setFailed('Terraform plan failed — see comment for details.');
+            }
