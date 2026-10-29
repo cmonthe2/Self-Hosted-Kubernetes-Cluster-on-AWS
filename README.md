@@ -205,7 +205,7 @@ backend "s3" {
 }
 ```
 
-> Workers are in private subnets — outbound traffic routes through NAT Gateway.  
+> Workers are in private subnets — outbound traffic routes through NAT Gateway.
 > The NAT GW incurs cost even when idle. Run **Terraform Destroy** when not in use.
 
 ---

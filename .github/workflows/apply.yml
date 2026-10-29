@@ -70,7 +70,8 @@ jobs:
           # key_name removed — Terraform manages the key pair itself.
           # allowed_ssh_cidr is the runner's live IP — no secret needed.
           TF_VAR_allowed_ssh_cidr: ${{ steps.runner_ip.outputs.cidr }}
-          TF_VAR_worker_count:     ${{ vars.TF_VAR_WORKER_COUNT }}
+          # worker_count is a number type — guard against empty repo variable
+          TF_VAR_worker_count: ${{ vars.TF_VAR_WORKER_COUNT != '' && vars.TF_VAR_WORKER_COUNT || '2' }}
         run: terraform apply -input=false -auto-approve
 
       - name: Capture Terraform outputs

@@ -46,5 +46,6 @@ jobs:
         env:
           # allowed_ssh_cidr not needed here — destroy reads existing state.
           # The variable has a default so Terraform won't prompt.
-          TF_VAR_worker_count: ${{ vars.TF_VAR_WORKER_COUNT }}
+          # worker_count: guard against empty repo variable
+          TF_VAR_worker_count: ${{ vars.TF_VAR_WORKER_COUNT != '' && vars.TF_VAR_WORKER_COUNT || '2' }}
         run: terraform destroy -input=false -auto-approve
