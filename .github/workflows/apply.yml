@@ -133,6 +133,42 @@ jobs:
           echo "ip=$IP" >> "$GITHUB_OUTPUT"
           echo "Resolved control-plane IP: $IP"
 
+      # ── Allow this runner's IP in the SSH security groups ─────────────────
+      # Each job gets a fresh runner with a different public IP. The Terraform
+      # job already locked the SG to its own IP. We need to add this runner's
+      # IP too, then clean it up after Ansible finishes.
+      - name: Resolve this runner's public IP
+        id: runner_ip
+        run: |
+          IP=$(curl -sf https://checkip.amazonaws.com)
+          echo "cidr=${IP}/32" >> "$GITHUB_OUTPUT"
+          echo "This runner's IP: ${IP}/32"
+
+      - name: Add this runner's IP to SSH security groups
+        run: |
+          CIDR="${{ steps.runner_ip.outputs.cidr }}"
+
+          for SG_NAME in "k8s-cluster-dev-sg-control-plane" "k8s-cluster-dev-sg-workers"; do
+            SG_ID=$(aws ec2 describe-security-groups \
+              --filters "Name=group-name,Values=${SG_NAME}" \
+              --query "SecurityGroups[0].GroupId" \
+              --output text)
+
+            if [ "$SG_ID" = "None" ] || [ -z "$SG_ID" ]; then
+              echo "Warning: could not find SG ${SG_NAME}, skipping"
+              continue
+            fi
+
+            # Add rule only if it doesn't already exist
+            aws ec2 authorize-security-group-ingress \
+              --group-id "$SG_ID" \
+              --protocol tcp \
+              --port 22 \
+              --cidr "$CIDR" 2>/dev/null \
+              && echo "Added $CIDR → $SG_NAME" \
+              || echo "$CIDR already exists in $SG_NAME, skipping"
+          done
+
       # ── Resolve the SSM parameter path for the SSH private key ────────────
       # Normal flow: Terraform output carries the exact path.
       # ansible_only mode: reconstruct from the naming convention in keypair.tf.
@@ -213,6 +249,32 @@ jobs:
           ANSIBLE_HOST_KEY_CHECKING: "False"
           ANSIBLE_FORCE_COLOR: "True"
         run: ansible-playbook ansible/site.yml
+
+      # ── Revoke this runner's ephemeral SSH rule ───────────────────────────
+      # Always runs so the temporary ingress rule is cleaned up even on failure.
+      - name: Remove this runner's IP from SSH security groups
+        if: always()
+        run: |
+          CIDR="${{ steps.runner_ip.outputs.cidr }}"
+
+          for SG_NAME in "k8s-cluster-dev-sg-control-plane" "k8s-cluster-dev-sg-workers"; do
+            SG_ID=$(aws ec2 describe-security-groups \
+              --filters "Name=group-name,Values=${SG_NAME}" \
+              --query "SecurityGroups[0].GroupId" \
+              --output text)
+
+            if [ "$SG_ID" = "None" ] || [ -z "$SG_ID" ]; then
+              continue
+            fi
+
+            aws ec2 revoke-security-group-ingress \
+              --group-id "$SG_ID" \
+              --protocol tcp \
+              --port 22 \
+              --cidr "$CIDR" 2>/dev/null \
+              && echo "Removed $CIDR from $SG_NAME" \
+              || echo "$CIDR not found in $SG_NAME, nothing to remove"
+          done
 
       # ── Summary ───────────────────────────────────────────────────────────
       - name: Print cluster access info
