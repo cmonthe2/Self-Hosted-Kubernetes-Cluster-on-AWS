@@ -1,4 +1,4 @@
-name: Terraform PR (Plan)
+name: PR — Plan & Security
 
 on:
   pull_request:
