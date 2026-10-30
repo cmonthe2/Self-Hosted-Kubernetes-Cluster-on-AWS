@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.3](https://github.com/cmonthe2/Self-Hosted-Kubernetes-Cluster-on-AWS/compare/v1.0.2...v1.0.3) (2026-10-30)
+
+### 🐛 Bug Fixes
+
+* replace removed yaml callback with result_format, update ec2_tags ([9380c69](https://github.com/cmonthe2/Self-Hosted-Kubernetes-Cluster-on-AWS/commit/9380c694402950e1fa8d59420c2deccd365d1038))
+* replace removed yaml callback with result_format, update ec2_tags ([d06ab96](https://github.com/cmonthe2/Self-Hosted-Kubernetes-Cluster-on-AWS/commit/d06ab96ab9cba752d04e41bf39ed509eb7226393))
+* replace removed yaml callback with result_format, update ec2_tags ([c1b9810](https://github.com/cmonthe2/Self-Hosted-Kubernetes-Cluster-on-AWS/commit/c1b981003424cb1a1267be3795005e45eec24609))
+
 ## [1.0.2](https://github.com/cmonthe2/Self-Hosted-Kubernetes-Cluster-on-AWS/compare/v1.0.1...v1.0.2) (2026-10-30)
 
 ### 🐛 Bug Fixes
