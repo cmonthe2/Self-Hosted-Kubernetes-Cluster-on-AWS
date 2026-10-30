@@ -250,6 +250,19 @@ jobs:
           EOF
           chmod 600 ~/.ssh/config
 
+      # ── Debug: show what the dynamic inventory resolved ───────────────────
+      - name: Debug dynamic inventory
+        env:
+          ANSIBLE_CONFIG: "${{ github.workspace }}/ansible/ansible.cfg"
+        run: |
+          ansible-inventory \
+            --inventory "${{ github.workspace }}/ansible/inventory/aws_ec2.yml" \
+            --list --yaml || true
+          echo "─── Graph ───"
+          ansible-inventory \
+            --inventory "${{ github.workspace }}/ansible/inventory/aws_ec2.yml" \
+            --graph --vars || true
+
       # ── Run the full playbook ─────────────────────────────────────────────
       - name: Run Ansible site.yml
         env:
