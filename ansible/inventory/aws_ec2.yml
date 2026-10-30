@@ -25,18 +25,18 @@ keyed_groups:
     prefix: ""
     separator: ""
 
-# Use public IP for control-plane (public subnet), private IP for workers
-# (private subnet — reached via ProxyCommand through the control-plane).
-# public_ip_address is None for workers so we fall back to private_ip_address.
+# Connection target per host:
+#   control-plane → public IP (it's in a public subnet)
+#   workers       → private IP (reached via ProxyCommand through control-plane)
+# public_ip_address is None for workers, so fall back to private_ip_address.
 compose:
   ansible_host: public_ip_address if public_ip_address else private_ip_address
 
-# Address every host by its connection IP as the inventory hostname.
-# This guarantees ansible_host == a routable/known IP and lets the
-# runner's ~/.ssh/config ProxyCommand (keyed on 10.0.*) match workers.
+# Keep the friendly Name tag as the inventory hostname so all three nodes
+# appear distinctly. SSH routing is handled by ansible_host (the IP) plus the
+# runner's ~/.ssh/config ProxyCommand which matches the worker Name pattern.
 hostnames:
-  - public-ip-address
-  - private-ip-address
+  - tag:Name
 
 # ansible_user for all hosts
 vars:

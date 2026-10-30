@@ -2,47 +2,56 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # sample_workload/tasks/main.yml
 # Deploys an nginx Deployment + NodePort Service to prove the cluster works.
-# Runs only on the control-plane node (kubectl delegate).
+# Uses plain `kubectl apply` so no extra Python libraries are required on the
+# control-plane node.
 # ─────────────────────────────────────────────────────────────────────────────
 
-- name: Create namespace for sample workload
-  kubernetes.core.k8s:
-    kubeconfig: /etc/kubernetes/admin.conf
-    api_version: v1
-    kind: Namespace
-    name: demo
-    state: present
+- name: Render nginx manifests to the control-plane node
+  template:
+    src: "{{ item.src }}"
+    dest: "/tmp/{{ item.dest }}"
+    mode: "0644"
+  loop:
+    - { src: "nginx-deployment.yml.j2", dest: "nginx-deployment.yml" }
+    - { src: "nginx-service.yml.j2", dest: "nginx-service.yml" }
 
-- name: Deploy nginx Deployment
-  kubernetes.core.k8s:
-    kubeconfig: /etc/kubernetes/admin.conf
-    state: present
-    definition: "{{ lookup('template', 'nginx-deployment.yml.j2') }}"
+- name: Create demo namespace
+  command: kubectl create namespace demo
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: ns_create
+  changed_when: "'created' in ns_create.stdout"
+  failed_when: >-
+    ns_create.rc != 0 and 'AlreadyExists' not in ns_create.stderr
 
-- name: Deploy nginx Service (NodePort)
-  kubernetes.core.k8s:
-    kubeconfig: /etc/kubernetes/admin.conf
-    state: present
-    definition: "{{ lookup('template', 'nginx-service.yml.j2') }}"
+- name: Apply nginx Deployment
+  command: kubectl apply -f /tmp/nginx-deployment.yml
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: deploy_apply
+  changed_when: "'created' in deploy_apply.stdout or 'configured' in deploy_apply.stdout"
 
-- name: Wait for nginx pods to be Ready
-  kubernetes.core.k8s_info:
-    kubeconfig: /etc/kubernetes/admin.conf
-    api_version: v1
-    kind: Pod
-    namespace: demo
-    label_selectors:
-      - app=nginx
-  register: nginx_pods
-  until: >-
-    nginx_pods.resources | length > 0 and
-    nginx_pods.resources | selectattr('status.phase', 'equalto', 'Running') | list | length ==
-    nginx_pods.resources | length
-  retries: 15
-  delay: 10
+- name: Apply nginx Service (NodePort)
+  command: kubectl apply -f /tmp/nginx-service.yml
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: svc_apply
+  changed_when: "'created' in svc_apply.stdout or 'configured' in svc_apply.stdout"
 
-- name: Print NodePort service info
+- name: Wait for nginx Deployment to become available
+  command: >
+    kubectl wait --for=condition=Available deployment/nginx
+    -n demo --timeout=180s
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: nginx_wait
+  changed_when: false
+  # Workers must be joined and Ready for pods to schedule; retry while they come up
+  retries: 3
+  delay: 20
+  until: nginx_wait.rc == 0
+
+- name: Report nginx access URL
   debug:
     msg: >-
-      nginx is accessible at http://<any-node-ip>:{{ nginx_node_port }}
-      (open NodePort {{ nginx_node_port }} in your security group if needed)
+      nginx is accessible at http://<node-public-ip>:{{ nginx_node_port }}
