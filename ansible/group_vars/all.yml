@@ -7,8 +7,8 @@
 kubernetes_version: "1.30"
 kubernetes_apt_version: "1.30.0-1.1"   # exact apt package suffix
 
-# containerd version to install from the official Ubuntu apt repo
-containerd_version: "1.7.*"
+# containerd.io is installed at the latest version available in Docker's repo
+# (currently 1.7.x). Pinning via apt wildcards is unreliable, so we don't pin.
 
 # Pod network CIDR — must match the CNI you choose below
 # Calico default: 192.168.0.0/16
