@@ -28,3 +28,9 @@ calico_manifest_url: "https://raw.githubusercontent.com/projectcalico/calico/v3.
 
 # SSH user Ansible connects as (set in ansible.cfg too, kept here for clarity)
 ansible_user: ubuntu
+
+# Path on the control-plane node where the kubeadm join command is written,
+# and where it's cached on the Ansible controller after being fetched.
+# Defined here (not in a group_vars file) so it's in scope for every play.
+kubeadm_join_command_file: /tmp/kubeadm_join_command.sh
+join_command_local_path: /tmp/kubeadm_join_command.sh
