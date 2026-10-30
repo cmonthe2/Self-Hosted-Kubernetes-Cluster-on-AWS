@@ -10,17 +10,18 @@ plugin: amazon.aws.aws_ec2
 regions:
   - us-east-1
 
-# Only pick up instances that Terraform tagged with our cluster name
+# Only pick up instances that Terraform tagged as ManagedBy Terraform
 filters:
   "tag:ManagedBy": Terraform
   instance-state-name: running
 
 # Group by the "Role" tag Terraform sets.
+# ec2_tags is the current key (tags is deprecated in amazon.aws 9+).
 # The plugin sanitizes hyphens → underscores so:
 #   "control-plane"  →  group: control_plane
 #   "worker"         →  group: worker
 keyed_groups:
-  - key: tags.Role
+  - key: ec2_tags.Role
     prefix: ""
     separator: ""
 
