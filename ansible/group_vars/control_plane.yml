@@ -7,5 +7,5 @@
 # server with an NLB later.
 apiserver_extra_sans: []
 
-# Path where kubeadm stores the join command after init
-kubeadm_join_command_file: /tmp/kubeadm_join_command.sh
+# Note: kubeadm_join_command_file and join_command_local_path are defined in
+# group_vars/all.yml so they're in scope for every play.

@@ -3,6 +3,18 @@
 # Variables scoped to worker nodes
 # ─────────────────────────────────────────────────────────────────────────────
 
-# The join command is fetched from the control-plane node at runtime;
-# these vars hold the path on the Ansible controller where it is cached.
-join_command_local_path: /tmp/kubeadm_join_command.sh
+# Note: join_command_local_path is defined in group_vars/all.yml so it's
+# in scope for both the control_plane and worker plays.
+
+# Route all worker SSH through the control-plane jump host. The control-plane
+# public IP is injected at runtime via -e "control_plane_public_ip=...".
+# %h resolves to the worker's ansible_host (its private IP), which the
+# control-plane can reach directly inside the VPC.
+ansible_ssh_common_args: >-
+  -o StrictHostKeyChecking=no
+  -o UserKnownHostsFile=/dev/null
+  -o ProxyCommand="ssh -W %h:%p
+  -o StrictHostKeyChecking=no
+  -o UserKnownHostsFile=/dev/null
+  -i ~/.ssh/k8s_deploy_key
+  ubuntu@{{ control_plane_public_ip }}"

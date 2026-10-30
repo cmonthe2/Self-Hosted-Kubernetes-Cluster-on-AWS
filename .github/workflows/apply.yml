@@ -274,6 +274,7 @@ jobs:
         run: |
           ansible-playbook \
             --inventory "${{ github.workspace }}/ansible/inventory/aws_ec2.yml" \
+            --extra-vars "control_plane_public_ip=${{ steps.cp_ip.outputs.ip }}" \
             ansible/site.yml
 
       # ── Revoke this runner's ephemeral SSH rule ───────────────────────────
