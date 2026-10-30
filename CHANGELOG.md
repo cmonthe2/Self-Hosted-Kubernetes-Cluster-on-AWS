@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.4](https://github.com/cmonthe2/Self-Hosted-Kubernetes-Cluster-on-AWS/compare/v1.0.3...v1.0.4) (2026-10-30)
+
+### 🐛 Bug Fixes
+
+* containerd version pin, worker proxyjump via IP hostnames ([5e738e5](https://github.com/cmonthe2/Self-Hosted-Kubernetes-Cluster-on-AWS/commit/5e738e56ab2be8d16aef237f89b603e21ce746c4))
+
 ## [1.0.3](https://github.com/cmonthe2/Self-Hosted-Kubernetes-Cluster-on-AWS/compare/v1.0.2...v1.0.3) (2026-10-30)
 
 ### 🐛 Bug Fixes
