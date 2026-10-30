@@ -248,7 +248,13 @@ jobs:
         env:
           ANSIBLE_HOST_KEY_CHECKING: "False"
           ANSIBLE_FORCE_COLOR: "True"
-        run: ansible-playbook ansible/site.yml
+          # Point Ansible at the cfg file explicitly — without this, running
+          # from the repo root means ansible.cfg in ansible/ is not discovered.
+          ANSIBLE_CONFIG: "${{ github.workspace }}/ansible/ansible.cfg"
+        run: |
+          ansible-playbook \
+            --inventory "${{ github.workspace }}/ansible/inventory/aws_ec2.yml" \
+            ansible/site.yml
 
       # ── Revoke this runner's ephemeral SSH rule ───────────────────────────
       # Always runs so the temporary ingress rule is cleaned up even on failure.
