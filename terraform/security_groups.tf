@@ -134,6 +134,17 @@ resource "aws_vpc_security_group_ingress_rule" "worker_ssh" {
   cidr_ipv4         = var.allowed_ssh_cidr
 }
 
+# SSH from inside the VPC — required so the control-plane can act as a jump
+# host (ProxyCommand) for Ansible to reach workers in the private subnet.
+resource "aws_vpc_security_group_ingress_rule" "worker_ssh_vpc" {
+  security_group_id = aws_security_group.workers.id
+  description       = "SSH from within the VPC (control-plane jump host)"
+  ip_protocol       = "tcp"
+  from_port         = 22
+  to_port           = 22
+  cidr_ipv4         = var.vpc_cidr
+}
+
 # kubelet API (control-plane → worker)
 resource "aws_vpc_security_group_ingress_rule" "worker_kubelet" {
   security_group_id = aws_security_group.workers.id
