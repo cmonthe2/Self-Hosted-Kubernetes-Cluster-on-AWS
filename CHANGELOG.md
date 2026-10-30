@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.7](https://github.com/cmonthe2/Self-Hosted-Kubernetes-Cluster-on-AWS/compare/v1.0.6...v1.0.7) (2026-10-30)
+
+### 🐛 Bug Fixes
+
+* allow SSH from within VPC so control-plane can jump to workers ([83bb4ac](https://github.com/cmonthe2/Self-Hosted-Kubernetes-Cluster-on-AWS/commit/83bb4ac996b1eb4adb3339e9719f98a461c20cfe))
+
 ## [1.0.6](https://github.com/cmonthe2/Self-Hosted-Kubernetes-Cluster-on-AWS/compare/v1.0.5...v1.0.6) (2026-10-30)
 
 ### 🐛 Bug Fixes
