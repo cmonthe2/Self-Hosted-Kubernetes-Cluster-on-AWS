@@ -15,20 +15,27 @@ filters:
   "tag:ManagedBy": Terraform
   instance-state-name: running
 
-# Group by the "Role" tag Terraform sets (values: control-plane, worker)
+# Group by the "Role" tag Terraform sets.
+# The plugin sanitizes hyphens → underscores so:
+#   "control-plane"  →  group: control_plane
+#   "worker"         →  group: worker
 keyed_groups:
   - key: tags.Role
     prefix: ""
     separator: ""
 
-# Expose the private IP as the connection host for workers (they're in private subnets)
-# and the public IP for the control-plane node.
+# Use public IP for control-plane (public subnet), private IP for workers
+# (private subnet — reached via ProxyJump through the control-plane).
+# public_ip_address is None for workers so we fall back to private_ip_address.
 compose:
-  ansible_host: >-
-    public_ip_address if tags.Role == 'control-plane' else private_ip_address
+  ansible_host: public_ip_address if public_ip_address else private_ip_address
 
 hostnames:
   - tag:Name
+
+# ansible_user for all hosts
+vars:
+  ansible_user: ubuntu
 
 # Cache results for 5 minutes to avoid hammering the AWS API during playbook runs
 cache: true
