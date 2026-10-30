@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.2](https://github.com/cmonthe2/Self-Hosted-Kubernetes-Cluster-on-AWS/compare/v1.0.1...v1.0.2) (2026-10-30)
+
+### 🐛 Bug Fixes
+
+* pass explicit inventory path and ANSIBLE_CONFIG to ansible-playbook ([7c8435f](https://github.com/cmonthe2/Self-Hosted-Kubernetes-Cluster-on-AWS/commit/7c8435f4802cfaf1f24664a481b0fadd7857500c))
+
 ## [1.0.1](https://github.com/cmonthe2/Self-Hosted-Kubernetes-Cluster-on-AWS/compare/v1.0.0...v1.0.1) (2026-10-30)
 
 ### 🐛 Bug Fixes
