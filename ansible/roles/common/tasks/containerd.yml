@@ -34,7 +34,7 @@
 
 - name: Install containerd.io
   apt:
-    name: "containerd.io={{ containerd_version }}"
+    name: containerd.io
     state: present
     update_cache: true
 

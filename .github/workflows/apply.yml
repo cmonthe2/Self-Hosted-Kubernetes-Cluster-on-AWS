@@ -224,22 +224,29 @@ jobs:
           exit 1
 
       # ── ProxyJump so the runner can reach private worker nodes ────────────
-      # Workers sit in private subnets with no public IP. All traffic routes
-      # through the control-plane as a jump host.
+      # Workers sit in private subnets with no public IP. All worker SSH
+      # traffic is tunnelled through the control-plane as a jump host.
+      # We match on the worker private CIDR (10.0.0.0/16) AND the Name-tag
+      # hostnames, so it works regardless of how Ansible addresses the host.
       - name: Configure SSH ProxyJump for private worker nodes
         run: |
           CP_IP="${{ steps.cp_ip.outputs.ip }}"
           cat > ~/.ssh/config <<EOF
-          Host 10.0.*
-            StrictHostKeyChecking no
-            UserKnownHostsFile /dev/null
-            IdentityFile ~/.ssh/k8s_deploy_key
-            ProxyJump ubuntu@${CP_IP}
-
+          # Control-plane — direct connection
           Host ${CP_IP}
+            HostName ${CP_IP}
+            User ubuntu
             StrictHostKeyChecking no
             UserKnownHostsFile /dev/null
             IdentityFile ~/.ssh/k8s_deploy_key
+
+          # Workers by private IP — jump through the control-plane
+          Host 10.0.* k8s-cluster-dev-worker-*
+            User ubuntu
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+            IdentityFile ~/.ssh/k8s_deploy_key
+            ProxyCommand ssh -W %h:%p -i ~/.ssh/k8s_deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ubuntu@${CP_IP}
           EOF
           chmod 600 ~/.ssh/config
 
