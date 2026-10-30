@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.5](https://github.com/cmonthe2/Self-Hosted-Kubernetes-Cluster-on-AWS/compare/v1.0.4...v1.0.5) (2026-10-30)
+
+### 🐛 Bug Fixes
+
+* kubectl-based workload deploy, restore Name hostnames, add inventory debug ([91c34b1](https://github.com/cmonthe2/Self-Hosted-Kubernetes-Cluster-on-AWS/commit/91c34b1c3b3cddb8d2e0286c7db2abca9775d12a))
+
 ## [1.0.4](https://github.com/cmonthe2/Self-Hosted-Kubernetes-Cluster-on-AWS/compare/v1.0.3...v1.0.4) (2026-10-30)
 
 ### 🐛 Bug Fixes
