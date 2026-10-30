@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.6](https://github.com/cmonthe2/Self-Hosted-Kubernetes-Cluster-on-AWS/compare/v1.0.5...v1.0.6) (2026-10-30)
+
+### 🐛 Bug Fixes
+
+* scope join_command var to all, robust worker proxycommand, safe compose ([a00d6bf](https://github.com/cmonthe2/Self-Hosted-Kubernetes-Cluster-on-AWS/commit/a00d6bf85d71ca478f9eb0b0f87454be295e63f8))
+
 ## [1.0.5](https://github.com/cmonthe2/Self-Hosted-Kubernetes-Cluster-on-AWS/compare/v1.0.4...v1.0.5) (2026-10-30)
 
 ### 🐛 Bug Fixes
