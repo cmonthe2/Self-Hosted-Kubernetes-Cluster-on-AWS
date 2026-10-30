@@ -72,13 +72,33 @@ resource "aws_vpc_security_group_ingress_rule" "cp_controller" {
   cidr_ipv4         = var.vpc_cidr
 }
 
-# Flannel/Calico VXLAN overlay (UDP 8472 / 4789)
+# Flannel VXLAN overlay (UDP 8472)
 resource "aws_vpc_security_group_ingress_rule" "cp_vxlan" {
   security_group_id = aws_security_group.control_plane.id
-  description       = "CNI VXLAN overlay"
+  description       = "Flannel VXLAN overlay"
   ip_protocol       = "udp"
   from_port         = 8472
   to_port           = 8472
+  cidr_ipv4         = var.vpc_cidr
+}
+
+# Calico VXLAN overlay (UDP 4789) — used when Calico runs in VXLAN mode
+resource "aws_vpc_security_group_ingress_rule" "cp_vxlan_calico" {
+  security_group_id = aws_security_group.control_plane.id
+  description       = "Calico VXLAN overlay"
+  ip_protocol       = "udp"
+  from_port         = 4789
+  to_port           = 4789
+  cidr_ipv4         = var.vpc_cidr
+}
+
+# Calico IP-in-IP overlay (IP protocol 4) — REQUIRED for the default Calico
+# manifest which uses ipipMode=Always. Without this, cross-node pod traffic
+# (and NodePort forwarding between nodes) is silently dropped.
+resource "aws_vpc_security_group_ingress_rule" "cp_ipip" {
+  security_group_id = aws_security_group.control_plane.id
+  description       = "Calico IP-in-IP overlay"
+  ip_protocol       = "4"
   cidr_ipv4         = var.vpc_cidr
 }
 
@@ -165,13 +185,33 @@ resource "aws_vpc_security_group_ingress_rule" "worker_kube_proxy" {
   cidr_ipv4         = var.vpc_cidr
 }
 
-# CNI VXLAN overlay
+# Flannel VXLAN overlay (UDP 8472)
 resource "aws_vpc_security_group_ingress_rule" "worker_vxlan" {
   security_group_id = aws_security_group.workers.id
-  description       = "CNI VXLAN overlay"
+  description       = "Flannel VXLAN overlay"
   ip_protocol       = "udp"
   from_port         = 8472
   to_port           = 8472
+  cidr_ipv4         = var.vpc_cidr
+}
+
+# Calico VXLAN overlay (UDP 4789) — used when Calico runs in VXLAN mode
+resource "aws_vpc_security_group_ingress_rule" "worker_vxlan_calico" {
+  security_group_id = aws_security_group.workers.id
+  description       = "Calico VXLAN overlay"
+  ip_protocol       = "udp"
+  from_port         = 4789
+  to_port           = 4789
+  cidr_ipv4         = var.vpc_cidr
+}
+
+# Calico IP-in-IP overlay (IP protocol 4) — REQUIRED for the default Calico
+# manifest which uses ipipMode=Always. Without this, cross-node pod traffic
+# (and NodePort forwarding between nodes) is silently dropped.
+resource "aws_vpc_security_group_ingress_rule" "worker_ipip" {
+  security_group_id = aws_security_group.workers.id
+  description       = "Calico IP-in-IP overlay"
+  ip_protocol       = "4"
   cidr_ipv4         = var.vpc_cidr
 }
 
