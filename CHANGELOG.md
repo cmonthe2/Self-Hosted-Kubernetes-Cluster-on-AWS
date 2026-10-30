@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.1](https://github.com/cmonthe2/Self-Hosted-Kubernetes-Cluster-on-AWS/compare/v1.0.0...v1.0.1) (2026-10-30)
+
+### 🐛 Bug Fixes
+
+* handle None public_ip_address in dynamic inventory compose ([42a5a04](https://github.com/cmonthe2/Self-Hosted-Kubernetes-Cluster-on-AWS/commit/42a5a04a858d38f8bc7753c5a1a950bb3a53c1d8))
+
 ## 1.0.0 (2026-10-29)
 
 ### 🐛 Bug Fixes
