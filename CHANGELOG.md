@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.8](https://github.com/cmonthe2/Self-Hosted-Kubernetes-Cluster-on-AWS/compare/v1.0.7...v1.0.8) (2026-10-30)
+
+### 🐛 Bug Fixes
+
+* allow IP protocol 4 for Calico IP-in-IP overlay (cross-node networking) ([e3ad77f](https://github.com/cmonthe2/Self-Hosted-Kubernetes-Cluster-on-AWS/commit/e3ad77ff8172c8601e243f2e324240ec82af5057))
+
 ## [1.0.7](https://github.com/cmonthe2/Self-Hosted-Kubernetes-Cluster-on-AWS/compare/v1.0.6...v1.0.7) (2026-10-30)
 
 ### 🐛 Bug Fixes
